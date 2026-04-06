@@ -204,8 +204,10 @@ export function DocumentViewer({
     for (const [fieldKey, boxes] of Object.entries(fieldRegions)) {
       const confidence = fieldConfidence[fieldKey];
       if (confidence != null && confidence < threshold) continue;
+      // Only show highlights for fields that are explicitly provided and have a non-empty value.
+      if (!(fieldKey in fieldValues)) continue;
       const value = fieldValues[fieldKey];
-      if ((fieldKey in fieldValues) && (value == null || value === '')) continue;
+      if (value == null || value === '') continue;
       const valueLoose = normalizeLoose(value == null ? '' : String(value));
       const isActive = activeLoose.length > 0 && valueLoose.length > 0 && activeLoose === valueLoose;
 
