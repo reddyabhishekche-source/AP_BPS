@@ -380,7 +380,7 @@ export function DocumentViewer({
       </div>
 
       <ScrollArea className="h-[830px] bg-slate-100">
-        <div className="flex items-start justify-center p-4">
+        <div className="flex items-start justify-start p-4">
           {loading && <p className="py-8 text-xs text-muted-foreground">Loading preview...</p>}
 
           {!loading && loadError && (
@@ -391,14 +391,14 @@ export function DocumentViewer({
           )}
 
           {!loading && !loadError && useRenderedPdfPreview && currentRenderedPage && (
-            <div className="relative shadow-md">
+            <div
+              className="relative shadow-md"
+              style={{ transform: `scale(${scale})`, transformOrigin: 'top left' }}
+            >
               <img
                 src={`data:${currentRenderedPage.mimeType};base64,${currentRenderedPage.imageBase64}`}
                 alt={`${filename ?? 'Document'} page ${currentRenderedPage.page}`}
-                style={{
-                  display: 'block',
-                  width: `${(currentRenderedPage.width ?? ocrImageWidth ?? 0) * scale}px`,
-                }}
+                className="block"
               />
               {hasBboxHighlights && (
                 <div className="pointer-events-none absolute inset-0">
@@ -444,15 +444,11 @@ export function DocumentViewer({
           )}
 
           {!loading && !loadError && objectUrl && isImage && (
-            <div className="relative shadow-md">
-              <img
-                src={objectUrl}
-                alt={filename ?? 'Invoice'}
-                style={{
-                  display: 'block',
-                  width: ocrImageWidth ? `${ocrImageWidth * scale}px` : undefined,
-                }}
-              />
+            <div
+              className="relative shadow-md"
+              style={{ transform: `scale(${scale})`, transformOrigin: 'top center' }}
+            >
+              <img src={objectUrl} alt={filename ?? 'Invoice'} className="block" />
               {hasBboxHighlights && (
                 <div className="pointer-events-none absolute inset-0">
                   {renderOverlays(activeHighlights, 1)}
