@@ -221,6 +221,16 @@ export default function InvoiceDetailPage() {
             fieldRegions={fieldRegions}
             fieldValues={fieldValues}
             renderedPages={invoice.ocr_metadata?.renderedPages ?? undefined}
+            ocrImageWidth={
+              invoice.ocr_metadata?.renderedPages?.[0]?.width ??
+              invoice.ocr_metadata?.imageWidth ??
+              undefined
+            }
+            ocrImageHeight={
+              invoice.ocr_metadata?.renderedPages?.[0]?.height ??
+              invoice.ocr_metadata?.imageHeight ??
+              undefined
+            }
             fieldConfidence={fieldConfidence}
             highlightValues={highlightValues}
             activeHighlight={activeHighlight}

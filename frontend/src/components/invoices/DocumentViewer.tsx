@@ -42,6 +42,11 @@ interface Props {
   renderedPages?: RenderedPage[];
   highlightValues?: string[];
   activeHighlight?: string | null;
+  /** Pixel width of the image that was sent to GPT (from ocr_metadata). Used to render
+   *  the PDF viewer at the same dimensions so coordinates align exactly. */
+  ocrImageWidth?: number;
+  /** Pixel height of the image that was sent to GPT. */
+  ocrImageHeight?: number;
 }
 
 function escapeRegExp(value: string): string {
@@ -110,6 +115,8 @@ export function DocumentViewer({
   renderedPages = [],
   highlightValues = [],
   activeHighlight,
+  ocrImageWidth,
+  ocrImageHeight,
 }: Props) {
   const [numPages, setNumPages] = useState<number>(0);
   const [pageNumber, setPageNumber] = useState(1);
@@ -210,29 +217,37 @@ export function DocumentViewer({
       const isActive = activeLoose.length > 0 && valueLoose.length > 0 && activeLoose === valueLoose;
 
       const normalized = (boxes ?? []).flatMap((box) => {
-        const pageWidth = Number(box.page_width);
-        const pageHeight = Number(box.page_height);
+        const boxPage = box.page ?? 1;
+        // Use actual stored image dimensions as the authoritative reference —
+        // they are what GPT analyzed. GPT-reported page_width/page_height are
+        // only a fallback in case rendered page metadata isn't available.
+        const storedPage = renderedPages.find((p) => p.page === boxPage);
+        const actualW = storedPage?.width ?? ocrImageWidth ?? 0;
+        const actualH = storedPage?.height ?? ocrImageHeight ?? 0;
+        const gptPageWidth = Number(box.page_width);
+        const gptPageHeight = Number(box.page_height);
+
         const usePageSpace = (
           box.coordinate_space === 'page' ||
-          (Number.isFinite(pageWidth) && pageWidth > 0 && Number.isFinite(pageHeight) && pageHeight > 0
-            && (box.left > 1 || box.top > 1 || box.width > 1 || box.height > 1))
+          (box.left > 1 || box.top > 1 || box.width > 1 || box.height > 1)
         );
 
         if (usePageSpace) {
-          if (!(Number.isFinite(pageWidth) && pageWidth > 0 && Number.isFinite(pageHeight) && pageHeight > 0)) {
-            return [];
-          }
+          // Prefer actual rendered dimensions; fall back to GPT-reported dimensions.
+          const refW = actualW > 0 ? actualW : (Number.isFinite(gptPageWidth) && gptPageWidth > 0 ? gptPageWidth : 0);
+          const refH = actualH > 0 ? actualH : (Number.isFinite(gptPageHeight) && gptPageHeight > 0 ? gptPageHeight : 0);
+          if (refW <= 0 || refH <= 0) return [];
           return [{
-            page: box.page ?? 1,
-            left: box.left / pageWidth,
-            top: box.top / pageHeight,
-            width: box.width / pageWidth,
-            height: box.height / pageHeight,
+            page: boxPage,
+            left: box.left / refW,
+            top: box.top / refH,
+            width: box.width / refW,
+            height: box.height / refH,
           }];
         }
 
         return [{
-          page: box.page ?? 1,
+          page: boxPage,
           left: box.left,
           top: box.top,
           width: box.width,
@@ -254,7 +269,7 @@ export function DocumentViewer({
     }
 
     return entries;
-  }, [fieldRegions, fieldValues, fieldConfidence, confidenceThreshold, activeHighlight]);
+  }, [fieldRegions, fieldValues, fieldConfidence, confidenceThreshold, activeHighlight, renderedPages, ocrImageWidth, ocrImageHeight]);
 
   const hasBboxHighlights = activeHighlights.length > 0;
   const hasAnyBboxSource = Object.keys(fieldRegions).length > 0;
@@ -376,11 +391,14 @@ export function DocumentViewer({
           )}
 
           {!loading && !loadError && useRenderedPdfPreview && currentRenderedPage && (
-            <div className="relative shadow-md" style={{ transform: `scale(${scale})`, transformOrigin: 'top center' }}>
+            <div className="relative shadow-md">
               <img
                 src={`data:${currentRenderedPage.mimeType};base64,${currentRenderedPage.imageBase64}`}
                 alt={`${filename ?? 'Document'} page ${currentRenderedPage.page}`}
-                className="block"
+                style={{
+                  display: 'block',
+                  width: `${(currentRenderedPage.width ?? ocrImageWidth ?? 0) * scale}px`,
+                }}
               />
               {hasBboxHighlights && (
                 <div className="pointer-events-none absolute inset-0">
@@ -400,7 +418,8 @@ export function DocumentViewer({
               <div ref={pdfWrapRef} className="relative inline-block">
                 <Page
                   pageNumber={pageNumber}
-                  scale={scale}
+                  width={ocrImageWidth ? ocrImageWidth * scale : undefined}
+                  scale={ocrImageWidth ? undefined : scale}
                   className="shadow-md"
                   customTextRenderer={({ str }) => {
                     if (hasBboxHighlights && !debugMode) return str;
@@ -425,8 +444,15 @@ export function DocumentViewer({
           )}
 
           {!loading && !loadError && objectUrl && isImage && (
-            <div className="relative shadow-md" style={{ transform: `scale(${scale})`, transformOrigin: 'top center' }}>
-              <img src={objectUrl} alt={filename ?? 'Invoice'} className="block" />
+            <div className="relative shadow-md">
+              <img
+                src={objectUrl}
+                alt={filename ?? 'Invoice'}
+                style={{
+                  display: 'block',
+                  width: ocrImageWidth ? `${ocrImageWidth * scale}px` : undefined,
+                }}
+              />
               {hasBboxHighlights && (
                 <div className="pointer-events-none absolute inset-0">
                   {renderOverlays(activeHighlights, 1)}
