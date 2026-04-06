@@ -212,6 +212,17 @@ export interface ExtractedInvoiceData {
     po_line_reference: string | null;
     custom_fields?: Record<string, string | number | boolean | null>;
     highlight_terms?: string[];
+    /** Per-field bounding boxes for this line item (same coordinate format as top-level field_regions). */
+    field_regions?: Record<string, Array<{
+      page?: number;
+      left: number;
+      top: number;
+      width: number;
+      height: number;
+      page_width?: number;
+      page_height?: number;
+      coordinate_space?: 'normalized' | 'page';
+    }>>;
   }>;
   confidence_score: number;
   custom_fields?: Record<string, string | number | boolean | null>;

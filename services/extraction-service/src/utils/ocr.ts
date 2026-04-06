@@ -1,7 +1,6 @@
 import fs from 'fs';
 import path from 'path';
 import pdfParse from 'pdf-parse';
-import { createWorker } from 'tesseract.js';
 import sharp from 'sharp';
 import { logger } from '@ap-bps/shared';
 
@@ -27,47 +26,7 @@ export interface OcrResult {
       width?: number;
       height?: number;
     }>;
-    words?: Array<{
-      text: string;
-      x: number;
-      y: number;
-      width: number;
-      height: number;
-      confidence: number;
-    }>;
   };
-}
-
-async function extractRenderedImageOcr(image: Buffer): Promise<{
-  text: string;
-  words: Array<{
-    text: string;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    confidence: number;
-  }>;
-}> {
-  const worker = await createWorker('eng');
-  try {
-    const { data } = await worker.recognize(image);
-    return {
-      text: data.text.trim(),
-      words: (data.words ?? [])
-        .filter((w) => !!w.text?.trim())
-        .map((w) => ({
-          text: String(w.text).trim(),
-          x: w.bbox.x0,
-          y: w.bbox.y0,
-          width: Math.max(0, w.bbox.x1 - w.bbox.x0),
-          height: Math.max(0, w.bbox.y1 - w.bbox.y0),
-          confidence: Number(w.confidence ?? 0),
-        })),
-    };
-  } finally {
-    await worker.terminate();
-  }
 }
 
 export async function extractTextAndImage(storagePath: string, mimeType: string): Promise<OcrResult> {
@@ -86,11 +45,10 @@ export async function extractTextAndImage(storagePath: string, mimeType: string)
         text = data.text?.trim() ?? '';
         pageCount = data.numpages ?? 1;
       } catch (err) {
-        logger.warn('PDF parse failed; will attempt render+OCR for text', err);
+        logger.warn('PDF parse failed; will rely on vision extraction', err);
       }
 
       try {
-        // Render up to N pages so vision models can return field_regions with page numbers.
         const renderPages = Math.max(1, Math.min(pageCount, pdfImagePagesCap));
         const imagePages: NonNullable<OcrResult['imagePages']> = [];
         for (let pageIdx = 0; pageIdx < renderPages; pageIdx += 1) {
@@ -106,43 +64,15 @@ export async function extractTextAndImage(storagePath: string, mimeType: string)
         }
 
         const first = imagePages[0];
-        const firstPngBuffer = first ? Buffer.from(first.imageBase64, 'base64') : null;
 
-        const ocr = firstPngBuffer
-          ? await extractRenderedImageOcr(firstPngBuffer)
-          : { text: '', words: [] };
-        const words = ocr.words;
-
-        if (text.length > 100) {
-          logger.debug('PDF text extracted directly; returning rendered images plus OCR word boxes for highlighting', {
-            chars: text.length,
-            pageCount,
-            imagePages: renderPages,
-            words: words.length,
-          });
-          return {
-            text,
-            imageBase64: first?.imageBase64,
-            mimeType: first?.mimeType,
-            imagePages,
-            pageCount,
-            metadata: {
-              imageWidth: first?.width,
-              imageHeight: first?.height,
-              renderedPages: imagePages,
-              words,
-            },
-          };
-        }
-
-        // Scanned/low-text PDF: use OCR text from the rendered first page and keep the
-        // same word boxes for viewer highlights.
-        logger.debug('PDF appears scanned/low-text, using OCR text from rendered first page', {
+        logger.debug('PDF rendered to images for vision extraction', {
+          chars: text.length,
           pageCount,
-          words: words.length,
+          imagePages: renderPages,
         });
+
         return {
-          text: ocr.text,
+          text,
           imageBase64: first?.imageBase64,
           mimeType: first?.mimeType,
           imagePages,
@@ -151,11 +81,10 @@ export async function extractTextAndImage(storagePath: string, mimeType: string)
             imageWidth: first?.width,
             imageHeight: first?.height,
             renderedPages: imagePages,
-            words,
           },
         };
-      } catch (ocrErr) {
-        logger.warn('PDF page render/OCR failed, returning parsed text fallback', ocrErr);
+      } catch (renderErr) {
+        logger.warn('PDF page render failed, returning parsed text only', renderErr);
         return { text, pageCount };
       }
     } catch (err) {
@@ -169,38 +98,21 @@ export async function extractTextAndImage(storagePath: string, mimeType: string)
     ['.jpg', '.jpeg', '.png', '.tiff', '.tif'].includes(ext)
   ) {
     try {
-      // Normalise to PNG for Tesseract
       const pngBuffer = await sharp(storagePath).png().toBuffer();
       const imageBase64 = pngBuffer.toString('base64');
       const imageInfo = await sharp(storagePath).metadata();
 
-      const worker = await createWorker('eng');
-      const { data } = await worker.recognize(storagePath);
-      await worker.terminate();
-
-      const words = (data.words ?? [])
-        .filter((w) => !!w.text?.trim())
-        .map((w) => ({
-          text: String(w.text).trim(),
-          x: w.bbox.x0,
-          y: w.bbox.y0,
-          width: Math.max(0, w.bbox.x1 - w.bbox.x0),
-          height: Math.max(0, w.bbox.y1 - w.bbox.y0),
-          confidence: Number(w.confidence ?? 0),
-        }));
-
       return {
-        text: data.text.trim(),
+        text: '',
         imageBase64,
         mimeType: 'image/png',
         metadata: {
           imageWidth: imageInfo.width,
           imageHeight: imageInfo.height,
-          words,
         },
       };
     } catch (err) {
-      logger.error('OCR failed', err);
+      logger.error('Image processing failed', err);
       return { text: '' };
     }
   }

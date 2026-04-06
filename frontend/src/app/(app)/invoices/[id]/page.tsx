@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft, Send, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -19,8 +19,6 @@ import { useInvoice, useUpdateStatus, useDeleteInvoice } from '@/hooks/useInvoic
 import { toast } from '@/components/ui/use-toast';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import type { FieldRegionBox } from '@/types';
-import { buildOcrFieldRegions } from '@/lib/ocrHighlight';
-import type { OcrWord } from '@/lib/ocrHighlight';
 
 export default function InvoiceDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -30,53 +28,6 @@ export default function InvoiceDetailPage() {
   const { mutateAsync: deleteInvoice, isPending: deletingInvoice } = useDeleteInvoice(id);
   const [activeTab, setActiveTab] = useState('extraction');
   const [activeHighlight, setActiveHighlight] = useState<string | null>(null);
-
-  // Must be before early returns to comply with React hooks rules.
-  // Computes highlight field regions using Tesseract OCR word positions (pixel-accurate)
-  // with a fallback to GPT field_regions for fields that couldn't be matched via OCR.
-  const computedFieldRegions = useMemo(() => {
-    if (!invoice) return {};
-
-    const SUPPORTED_FIELDS = new Set([
-      'invoice_number', 'invoice_date', 'due_date', 'vendor_name',
-      'po_reference', 'subtotal', 'tax', 'total', 'currency',
-    ]);
-
-    // Filter GPT regions to only known fields — prevents spurious highlights from GPT.
-    const rawGptRegions = (invoice.extraction_payload as { field_regions?: unknown } | null)
-      ?.field_regions as Record<string, FieldRegionBox[]> | undefined ?? {};
-    const gptRegions: Record<string, FieldRegionBox[]> = {};
-    for (const [key, boxes] of Object.entries(rawGptRegions)) {
-      if (SUPPORTED_FIELDS.has(key)) gptRegions[key] = boxes;
-    }
-
-    const ocrWords = (invoice.ocr_metadata?.words ?? []) as OcrWord[];
-    const renderedPage = invoice.ocr_metadata?.renderedPages?.[0];
-    const imgW = renderedPage?.width ?? invoice.ocr_metadata?.imageWidth ?? 0;
-    const imgH = renderedPage?.height ?? invoice.ocr_metadata?.imageHeight ?? 0;
-
-    if (!ocrWords.length || !imgW || !imgH) {
-      return gptRegions;
-    }
-
-    const fv = {
-      invoice_number: invoice.invoice_number,
-      invoice_date: (invoice.extraction_payload as { invoice_date?: unknown } | null)
-        ?.invoice_date as string | undefined ?? invoice.invoice_date,
-      due_date: (invoice.extraction_payload as { due_date?: unknown } | null)
-        ?.due_date as string | undefined ?? invoice.due_date,
-      vendor_name: invoice.vendor_name,
-      po_reference: invoice.po_reference,
-      subtotal: invoice.subtotal,
-      tax: invoice.tax,
-      total: invoice.total,
-      currency: invoice.currency,
-    };
-
-    const ocrRegions = buildOcrFieldRegions(fv, ocrWords, imgW, imgH);
-    // OCR regions (accurate pixel positions) override GPT regions where a match was found.
-    return { ...gptRegions, ...ocrRegions };
-  }, [invoice]);
 
   const handleSubmitForApproval = async () => {
     try {
@@ -179,8 +130,18 @@ export default function InvoiceDetailPage() {
     .map((v) => (v == null ? null : String(v).trim()))
     .filter((v): v is string => !!v);
 
-  // fieldValues used by DocumentViewer (mirrors what's computed inside computedFieldRegions useMemo).
-  const fieldValues = {
+  // fieldValues for DocumentViewer: header fields + all line item fields with prefixed keys
+  // matching the "line_item_{idx}_{field}" keys GPT stores in field_regions.
+  const lineItems = invoice.line_items ?? [];
+  const lineItemFieldValues: Record<string, string | number | null | undefined> = {};
+  lineItems.forEach((li, idx) => {
+    lineItemFieldValues[`line_item_${idx}_description`] = li.description;
+    lineItemFieldValues[`line_item_${idx}_quantity`]    = li.quantity;
+    lineItemFieldValues[`line_item_${idx}_unit_price`]  = li.unit_price;
+    lineItemFieldValues[`line_item_${idx}_amount`]      = li.amount;
+  });
+
+  const fieldValues: Record<string, string | number | null | undefined> = {
     invoice_number: invoice.invoice_number,
     invoice_date: (invoice.extraction_payload as { invoice_date?: unknown } | null)
       ?.invoice_date as string | undefined ?? invoice.invoice_date,
@@ -192,7 +153,12 @@ export default function InvoiceDetailPage() {
     tax: invoice.tax,
     total: invoice.total,
     currency: invoice.currency,
+    ...lineItemFieldValues,
   };
+
+  // GPT field_regions already contains both header and line item boxes (merged in backend).
+  const fieldRegions = (invoice.extraction_payload as { field_regions?: unknown } | null)
+    ?.field_regions as Record<string, FieldRegionBox[]> | undefined ?? {};
 
   return (
     <div className="flex flex-col h-full">
@@ -252,7 +218,7 @@ export default function InvoiceDetailPage() {
             storageUrl={invoice.storage_path}
             filename={invoice.original_filename}
             mimeType={invoice.mime_type ?? undefined}
-            fieldRegions={computedFieldRegions}
+            fieldRegions={fieldRegions}
             fieldValues={fieldValues}
             renderedPages={invoice.ocr_metadata?.renderedPages ?? undefined}
             fieldConfidence={fieldConfidence}

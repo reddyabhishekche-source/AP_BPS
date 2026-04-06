@@ -41,7 +41,7 @@ const BASE_JSON_SCHEMA = `{
   "subtotal": number | null,
   "tax": number | null,
   "total": number | null,
-  "field_regions": object | null,       // OPTIONAL: field key -> [{page,left,top,width,height,page_width,page_height,coordinate_space}] where coords prefer page-space units and include source page size
+  "field_regions": object | null,       // OPTIONAL: header field key -> [{page,left,top,width,height,page_width,page_height,coordinate_space}]
   "line_items": [
     {
       "description": string | null,
@@ -51,7 +51,8 @@ const BASE_JSON_SCHEMA = `{
       "tax_code": string | null,
       "po_line_reference": string | null,
       "custom_fields": object | null,   // key/value pairs for configured line-item custom fields
-      "highlight_terms": string[]       // 1-5 short snippets from document for this line item
+      "highlight_terms": string[],      // 1-5 short snippets from document for this line item
+      "field_regions": object | null    // OPTIONAL: per-line-item field key -> [{page,left,top,width,height,page_width,page_height,coordinate_space}]
     }
   ],
   "custom_fields": object | null,       // key/value pairs for configured header-level custom fields
@@ -91,10 +92,11 @@ Extract structured invoice data from the provided document content and return ON
 For highlight_terms (top-level and line-item level), include exact text snippets copied from the document that best anchor each extracted value visually.
 For field_confidence, provide confidence for each extracted header field key using values from 0.0 to 1.0.
 For invoice_date and due_date, always return ISO 8601 dates in the format YYYY-MM-DD (no locale formats like 03/04/2026). If a numeric date is ambiguous (could be MM/DD or DD/MM), return null.
-If an image is provided, ALSO return field_regions for these header fields when you can locate them visually: invoice_number, invoice_date, due_date, vendor_name, po_reference, subtotal, tax, total, currency. Prefer page-space coordinates relative to the image you inspected: set left/top/width/height using that page's pixel coordinate system, set page_width/page_height to that page image size, and set coordinate_space to "page". If you are not confident about a box, omit it.
-If multiple page images are provided, set field_regions[*].page to the 1-based page number of the image where you found the field.
-If you cannot provide page-space coordinates, you may fall back to normalized 0..1 coordinates and set coordinate_space to "normalized".
-For field_regions, draw boxes as tightly as possible around the extracted VALUE text only. Do not include the field label, table borders, or the full row/cell band. For label-value rows, box only the printed value text on the right side.
+If an image is provided, return bounding boxes for every extracted value — both header fields and individual line item cells — using normalized 0..1 coordinates (0,0 = top-left, 1,1 = bottom-right of the image). Set coordinate_space to "normalized" for all boxes.
+For header field_regions include: invoice_number, invoice_date, due_date, vendor_name, po_reference, subtotal, tax, total, currency.
+For each line item, populate its field_regions with boxes for: description, quantity, unit_price, amount (only include fields that are present and non-null for that row).
+If multiple page images are provided, set the page field (1-based) on each box to indicate which image it is on.
+Draw every box as tightly as possible around the VALUE text only — exclude labels, table borders, and surrounding whitespace. If you are not confident about a box location, omit it rather than guessing.
 
 Return exactly this JSON structure (use null for missing fields):
 ${BASE_JSON_SCHEMA}
@@ -283,6 +285,7 @@ function normalizeLineItems(
       highlight_terms: Array.isArray(row.highlight_terms)
         ? row.highlight_terms.map((v) => String(v).trim()).filter(Boolean).slice(0, 8)
         : [],
+      field_regions: normalizeFieldRegions(row.field_regions),
     };
   });
 }
@@ -393,6 +396,17 @@ export function parseModelOutput(raw: string, customFields: ExtractionFieldConfi
       : {};
 
     const field_regions = normalizeFieldRegions(parsed.field_regions);
+
+    // Merge per-line-item field_regions into the top-level map using
+    // "line_item_{idx}_{field}" keys so the viewer can look them up by a flat key.
+    const rawLineItems = Array.isArray(parsed.line_items) ? parsed.line_items : [];
+    rawLineItems.forEach((item, idx) => {
+      const row = typeof item === 'object' && item !== null ? (item as Record<string, unknown>) : {};
+      const liRegions = normalizeFieldRegions(row.field_regions);
+      for (const [field, boxes] of Object.entries(liRegions)) {
+        field_regions[`line_item_${idx}_${field}`] = boxes;
+      }
+    });
 
     const result: ExtractedInvoiceData = {
       invoice_number: parsed.invoice_number == null ? null : String(parsed.invoice_number),
