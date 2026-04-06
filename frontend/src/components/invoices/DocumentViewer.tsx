@@ -54,28 +54,6 @@ function normalizeLoose(value: string): string {
 
 type RawBox = { page: number; left: number; top: number; width: number; height: number };
 
-const RIGHT_ANCHORED_FIELDS = new Set([
-  'invoice_number',
-  'invoice_date',
-  'due_date',
-  'po_reference',
-  'subtotal',
-  'tax',
-  'total',
-  'currency',
-]);
-
-const VALUE_CELL_CROP: Partial<Record<string, { start: number; width: number }>> = {
-  invoice_number: { start: 0.58, width: 0.28 },
-  invoice_date: { start: 0.58, width: 0.28 },
-  due_date: { start: 0.58, width: 0.28 },
-  po_reference: { start: 0.58, width: 0.28 },
-  subtotal: { start: 0.70, width: 0.20 },
-  tax: { start: 0.70, width: 0.20 },
-  total: { start: 0.70, width: 0.20 },
-  currency: { start: 0.58, width: 0.20 },
-};
-
 function mergeAdjacentBoxes(boxes: RawBox[]): RawBox[] {
   if (boxes.length <= 1) return boxes;
   const sorted = [...boxes].sort((a, b) => a.page - b.page || a.top - b.top || a.left - b.left);
@@ -263,32 +241,12 @@ export function DocumentViewer({
       });
 
       for (const box of mergeAdjacentBoxes(normalized)) {
-        const crop = VALUE_CELL_CROP[fieldKey];
-        const cropped = crop
-          ? {
-              ...box,
-              left: box.left + box.width * crop.start,
-              width: box.width * crop.width,
-            }
-          : box;
-        const shrink = Number.isFinite(Number(process.env.NEXT_PUBLIC_HIGHLIGHT_SHRINK))
-          ? Number(process.env.NEXT_PUBLIC_HIGHLIGHT_SHRINK)
-          : 0.82;
-        const shrinkX = RIGHT_ANCHORED_FIELDS.has(fieldKey) ? Math.min(shrink, 0.45) : shrink;
-        const effectiveShrinkX = crop ? Math.max(shrink, 0.92) : shrinkX;
-        const centerX = cropped.left + cropped.width / 2;
-        const centerY = cropped.top + cropped.height / 2;
-        const width = cropped.width * effectiveShrinkX;
-        const height = cropped.height * shrink;
-        const left = RIGHT_ANCHORED_FIELDS.has(fieldKey)
-          ? cropped.left + (cropped.width - width)
-          : centerX - width / 2;
         entries.push({
-          page: cropped.page,
-          leftPct: Math.max(0, Math.min(100, left * 100)),
-          topPct: Math.max(0, Math.min(100, (centerY - height / 2) * 100)),
-          widthPct: Math.max(0.5, width * 100),
-          heightPct: Math.max(0.5, height * 100),
+          page: box.page,
+          leftPct: Math.max(0, Math.min(100, box.left * 100)),
+          topPct: Math.max(0, Math.min(100, box.top * 100)),
+          widthPct: Math.max(0.5, Math.min(100, box.width * 100)),
+          heightPct: Math.max(0.5, Math.min(100, box.height * 100)),
           fieldKey,
           active: isActive,
         });
