@@ -1,0 +1,98 @@
+flowchart LR
+  %% Clients
+  subgraph Clients
+    U[User / Browser]
+    FE[Next.js Frontend\nfrontend (:3007)]
+    ADM[Admin / Approver UI\n(same Frontend)]
+  end
+
+  %% Edge / entrypoint
+  subgraph Edge
+    GW[API Gateway\nservices/api-gateway (:3000)\nJWT auth + reverse proxy]
+  end
+
+  %% Backend services
+  subgraph Services
+    ING[Ingestion\nservices/ingestion-service (:3001)\n- Upload/API intake\n- Email intake\n- Invoice APIs]
+    EXT[Extraction\nservices/extraction-service (:3002)\n- OCR\n- AI extraction\n- Provider selection]
+    VAL[Validation\nservices/validation-service (:3003)\n- Rules engine\n- Exceptions]
+    APP[Approval\nservices/approval-service (:3004)\n- Routing\n- Decisions\n- Posting status]
+    ERP[ERP Sync\nservices/erp-sync-service (:3005)\n- Scheduled sync\n- Vendors/POs/GL\n- Sync logs]
+    NOTIF[Notifications\nservices/notification-service (:3006)\n- Notifications API\n- (Optional) email worker]
+  end
+
+  %% Shared library
+  subgraph Shared
+    SH[@ap-bps/shared\npackages/shared\n- Knex (db)\n- Types\n- Logger\n- Migrations]
+  end
+
+  %% Data / infra
+  subgraph Infra["Data & Infrastructure"]
+    PG[(PostgreSQL\ninvoices, documents, vendors,\napprovals, line_items, ...)]
+    R[(Redis\nBullMQ queues)]
+    FS[(Local storage\nuploads/ + file blobs)]
+    ENV[.env\nservice config + secrets]
+  end
+
+  %% External systems
+  subgraph External
+    IMAP[Email Server (IMAP)]
+    SMTP[SMTP Server]
+    AI[AI Providers\nOpenAI / Anthropic / Gemini]
+    ERPAPI[ERP System / API]
+  end
+
+  %% Frontend -> gateway
+  U --> FE
+  ADM --> FE
+  FE -->|/api/auth/* (login/register/me)| GW
+  FE -->|/api/* (business APIs)| GW
+
+  %% Gateway -> services (reverse proxy)
+  GW -->|/api/invoices*\n/api/admin*| ING
+  GW -->|/api/extraction*| EXT
+  GW -->|/api/validation*| VAL
+  GW -->|/api/approvals*| APP
+  GW -->|/api/vendors*\n/api/purchase-orders*\n/api/gl-codes*\n/api/erp-sync*| ERP
+  GW -->|/api/notifications*| NOTIF
+
+  %% Shared + config
+  ENV -.-> GW
+  ENV -.-> ING
+  ENV -.-> EXT
+  ENV -.-> VAL
+  ENV -.-> APP
+  ENV -.-> ERP
+  ENV -.-> NOTIF
+  SH --- GW
+  SH --- ING
+  SH --- EXT
+  SH --- VAL
+  SH --- APP
+  SH --- ERP
+  SH --- NOTIF
+
+  %% Persistence
+  SH --> PG
+  ING --> FS
+  EXT --> FS
+
+  %% Email intake (optional)
+  IMAP -->|poll + attachments| ING
+
+  %% Async pipeline (BullMQ)
+  ING -->|enqueue: invoice-extraction| R
+  R -->|worker: invoice-extraction| EXT
+  EXT -->|enqueue: invoice-validation| R
+  R -->|worker: invoice-validation| VAL
+  VAL -->|enqueue: invoice-approval| R
+  R -->|worker: invoice-approval| APP
+
+  %% AI + ERP integrations
+  EXT --> AI
+  ERP -->|fetch master data| ERPAPI
+
+  %% Notifications (optional)
+  NOTIF -.->|optional enqueue: notifications| R
+  R -.->|worker: notifications| SMTP
+

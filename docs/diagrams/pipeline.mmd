@@ -1,0 +1,31 @@
+sequenceDiagram
+  autonumber
+  participant FE as Frontend (Next.js)
+  participant GW as API Gateway
+  participant ING as Ingestion Service
+  participant R as Redis (BullMQ)
+  participant EXT as Extraction Worker
+  participant AI as AI Provider
+  participant VAL as Validation Worker
+  participant APP as Approval Worker
+  participant PG as Postgres
+
+  FE->>GW: POST /api/invoices/intake/upload
+  GW->>ING: Proxy request
+  ING->>PG: Insert documents + invoices
+  ING->>R: Add job invoice-extraction
+  EXT->>R: Consume invoice-extraction
+  EXT->>PG: Update invoice status = processing
+  EXT->>AI: OCR + AI extraction
+  EXT->>PG: Persist extraction output + line items
+  EXT->>R: Add job invoice-validation
+  VAL->>R: Consume invoice-validation
+  VAL->>PG: Apply validation rules, update invoice status
+  alt Valid invoice
+    VAL->>R: Add job invoice-approval
+    APP->>R: Consume invoice-approval
+    APP->>PG: Create pending approval + route approver
+  else Needs verification
+    VAL->>PG: status = verification + exceptions
+  end
+

@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(echo \"exit:$?\")",
+      "Bash(npm run:*)",
+      "Bash(PGPASSWORD=password psql -U postgres -h localhost -c \"CREATE DATABASE ap_bps;\")",
+      "Bash(where psql:*)",
+      "Read(//c/Program Files/PostgreSQL/**)",
+      "Bash(PGPASSWORD=password \"/c/Program Files/PostgreSQL/18/bin/createdb.exe\" -U postgres -h localhost ap_bps)",
+      "Bash(npm install:*)",
+      "Bash(powershell -Command \"Get-Process node -ErrorAction SilentlyContinue | Stop-Process -Force\")",
+      "Bash(npx ts-node-dev:*)",
+      "Bash(curl -s -X POST http://localhost:3000/api/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"admin@company.com\",\"password\":\"admin123\"}')",
+      "Read(//c/Abhishek/HTC/AP_BPS/**)",
+      "Bash(netstat -ano)",
+      "Bash(findstr \":3000\")",
+      "Bash(tasklist /FI \"PID eq 40644\")",
+      "Bash(powershell -Command \"Get-Process -Id 40644 | Select-Object Name, Id, MainWindowTitle\")",
+      "Bash(xargs grep:*)",
+      "Bash(npx tsc:*)",
+      "Bash(echo \"EXIT:$?\")"
+    ]
+  }
+}

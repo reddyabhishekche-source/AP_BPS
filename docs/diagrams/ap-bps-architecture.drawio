@@ -1,0 +1,290 @@
+<mxfile host="app.diagrams.net" modified="2026-04-02T00:00:00.000Z" agent="codex" version="24.7.17" type="device">
+  <diagram id="overview" name="01 - Overview">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <mxCell id="t1" value="AP_BPS - Accounts Payable (Invoice Processing)&#xa;High-level architecture" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=24;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="20" y="10" width="1360" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- Main System boundary -->
+        <mxCell id="b1" value="AP_BPS System" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#334155;fillColor=#F8FAFC;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="20" y="70" width="980" height="810" as="geometry"/>
+        </mxCell>
+
+        <!-- External boundary -->
+        <mxCell id="b2" value="External Systems" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#9A3412;fillColor=#FFF7ED;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1020" y="70" width="360" height="810" as="geometry"/>
+        </mxCell>
+
+        <!-- Clients -->
+        <mxCell id="c1" value="Users&#xa;(AP clerk / Approver / Admin)" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#1D4ED8;fillColor=#DBEAFE;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="120" width="260" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="c2" value="Frontend UI&#xa;Next.js (frontend :3007)" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#1D4ED8;fillColor=#EFF6FF;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="360" y="110" width="280" height="90" as="geometry"/>
+        </mxCell>
+
+        <!-- API Gateway -->
+        <mxCell id="g1" value="API Gateway&#xa;Express (services/api-gateway :3000)&#xa;- JWT auth (/api/auth/*)&#xa;- Reverse proxy (/api/*)" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#16A34A;fillColor=#DCFCE7;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="360" y="230" width="280" height="120" as="geometry"/>
+        </mxCell>
+
+        <!-- Services cluster -->
+        <mxCell id="sbox" value="Backend Microservices (Node/Express)" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#CA8A04;fillColor=#FEFCE8;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="380" width="880" height="280" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="s1" value="Ingestion Service (:3001)&#xa;- Upload / API intake&#xa;- Email intake (poller)&#xa;- Invoice CRUD" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#CA8A04;fillColor=#FEF9C3;" vertex="1" parent="1">
+          <mxGeometry x="90" y="430" width="260" height="130" as="geometry"/>
+        </mxCell>
+        <mxCell id="s2" value="Extraction Service (:3002)&#xa;- OCR (pdf/tesseract)&#xa;- AI extraction (OpenAI/Claude/Gemini)" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#CA8A04;fillColor=#FEF9C3;" vertex="1" parent="1">
+          <mxGeometry x="370" y="430" width="260" height="130" as="geometry"/>
+        </mxCell>
+        <mxCell id="s3" value="Validation Service (:3003)&#xa;- Business rules&#xa;- Exceptions / verification routing" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#CA8A04;fillColor=#FEF9C3;" vertex="1" parent="1">
+          <mxGeometry x="650" y="430" width="260" height="130" as="geometry"/>
+        </mxCell>
+        <mxCell id="s4" value="Approval Service (:3004)&#xa;- Route approvers&#xa;- Capture decisions&#xa;- Mark posted" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#CA8A04;fillColor=#FEF9C3;" vertex="1" parent="1">
+          <mxGeometry x="90" y="580" width="260" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="s5" value="ERP Sync Service (:3005)&#xa;- Sync vendors / POs / GL&#xa;- Scheduled + trigger" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#CA8A04;fillColor=#FEF9C3;" vertex="1" parent="1">
+          <mxGeometry x="370" y="580" width="260" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="s6" value="Notification Service (:3006)&#xa;- Notifications API&#xa;- (Optional) email worker" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#CA8A04;fillColor=#FEF9C3;" vertex="1" parent="1">
+          <mxGeometry x="650" y="580" width="260" height="70" as="geometry"/>
+        </mxCell>
+
+        <!-- Data stores -->
+        <mxCell id="d1" value="PostgreSQL&#xa;(shared Knex + migrations)&#xa;Core tables: invoices, documents, vendors, approvals, line_items, ..." style="shape=cylinder3;whiteSpace=wrap;html=1;strokeColor=#DC2626;fillColor=#FEE2E2;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="90" y="700" width="300" height="110" as="geometry"/>
+        </mxCell>
+        <mxCell id="d2" value="Redis&#xa;BullMQ queues&#xa;- invoice-extraction&#xa;- invoice-validation&#xa;- invoice-approval" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#DB2777;fillColor=#FCE7F3;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="420" y="700" width="240" height="110" as="geometry"/>
+        </mxCell>
+        <mxCell id="d3" value="File Storage&#xa;uploads/ + blobs&#xa;(for document viewer + OCR input)" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#7C3AED;fillColor=#EDE9FE;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="690" y="700" width="240" height="110" as="geometry"/>
+        </mxCell>
+
+        <!-- External systems -->
+        <mxCell id="e1" value="Email Server (IMAP)" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#9A3412;fillColor=#FFF7ED;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1060" y="140" width="280" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="e2" value="AI Providers&#xa;OpenAI / Anthropic / Gemini" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#9A3412;fillColor=#FFF7ED;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1060" y="230" width="280" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="e3" value="ERP System / API" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#9A3412;fillColor=#FFF7ED;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1060" y="320" width="280" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="e4" value="SMTP Server (optional)" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#9A3412;fillColor=#FFF7ED;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1060" y="400" width="280" height="60" as="geometry"/>
+        </mxCell>
+
+        <!-- Legend -->
+        <mxCell id="l1" value="Legend&#xa;Solid arrow = synchronous HTTP call&#xa;Dashed arrow = asynchronous queue / optional integration" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#94A3B8;fillColor=#F1F5F9;" vertex="1" parent="1">
+          <mxGeometry x="60" y="835" width="880" height="35" as="geometry"/>
+        </mxCell>
+
+        <!-- Connectors (keep minimal; details are on page 02) -->
+        <mxCell id="x1" style="endArrow=block;html=1;strokeColor=#334155;" edge="1" parent="1" source="c1" target="c2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="x2" value="HTTPS" style="endArrow=block;html=1;strokeColor=#334155;" edge="1" parent="1" source="c2" target="g1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="x3" value="/api/*" style="endArrow=block;html=1;strokeColor=#64748B;" edge="1" parent="1" source="g1" target="sbox">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="x4" style="endArrow=block;html=1;strokeColor=#DC2626;" edge="1" parent="1" source="sbox" target="d1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="x5" style="endArrow=block;html=1;strokeColor=#DB2777;dashed=1;" edge="1" parent="1" source="sbox" target="d2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="x6" style="endArrow=block;html=1;strokeColor=#7C3AED;" edge="1" parent="1" source="sbox" target="d3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="x7" value="poll attachments" style="endArrow=block;html=1;strokeColor=#9A3412;dashed=1;" edge="1" parent="1" source="e1" target="s1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="x8" value="AI calls" style="endArrow=block;html=1;strokeColor=#9A3412;" edge="1" parent="1" source="s2" target="e2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="x9" value="sync master data" style="endArrow=block;html=1;strokeColor=#9A3412;" edge="1" parent="1" source="s5" target="e3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="x10" value="optional email" style="endArrow=block;html=1;strokeColor=#9A3412;dashed=1;" edge="1" parent="1" source="s6" target="e4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+
+  <diagram id="pipeline" name="02 - Invoice Processing Pipeline">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <mxCell id="pt" value="Invoice processing (end-to-end)&#xa;From ingestion to approval" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=22;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="20" y="10" width="1360" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- Step boxes -->
+        <mxCell id="p1" value="1) Ingestion&#xa;Upload / Email / API&#xa;services/ingestion-service (:3001)" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#CA8A04;fillColor=#FEF9C3;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="70" y="120" width="260" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="pdb1" value="PostgreSQL&#xa;Create documents + invoices" style="shape=cylinder3;whiteSpace=wrap;html=1;strokeColor=#DC2626;fillColor=#FEE2E2;" vertex="1" parent="1">
+          <mxGeometry x="70" y="240" width="260" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="pfs" value="File storage&#xa;uploads/ + blobs" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#7C3AED;fillColor=#EDE9FE;" vertex="1" parent="1">
+          <mxGeometry x="70" y="340" width="260" height="70" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="pq1" value="Redis / BullMQ&#xa;enqueue: invoice-extraction" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#DB2777;fillColor=#FCE7F3;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="370" y="150" width="260" height="70" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p2" value="2) Extraction worker&#xa;OCR + AI extraction&#xa;services/extraction-service (:3002)" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#CA8A04;fillColor=#FEF9C3;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="670" y="120" width="280" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="pai" value="AI Providers&#xa;OpenAI / Anthropic / Gemini" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#9A3412;fillColor=#FFF7ED;" vertex="1" parent="1">
+          <mxGeometry x="1000" y="120" width="330" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="pdb2" value="PostgreSQL&#xa;Persist extraction output + line items&#xa;Update invoice status" style="shape=cylinder3;whiteSpace=wrap;html=1;strokeColor=#DC2626;fillColor=#FEE2E2;" vertex="1" parent="1">
+          <mxGeometry x="670" y="240" width="280" height="90" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="pq2" value="Redis / BullMQ&#xa;enqueue: invoice-validation" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#DB2777;fillColor=#FCE7F3;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="370" y="300" width="260" height="70" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p3" value="3) Validation worker&#xa;Business rules&#xa;services/validation-service (:3003)" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#CA8A04;fillColor=#FEF9C3;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="670" y="360" width="280" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="pdb3" value="PostgreSQL&#xa;Update invoice status:&#xa;validated OR verification + exceptions" style="shape=cylinder3;whiteSpace=wrap;html=1;strokeColor=#DC2626;fillColor=#FEE2E2;" vertex="1" parent="1">
+          <mxGeometry x="670" y="480" width="280" height="90" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="pq3" value="Redis / BullMQ&#xa;(only if valid)&#xa;enqueue: invoice-approval" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#DB2777;fillColor=#FCE7F3;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="370" y="520" width="260" height="80" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p4" value="4) Approval worker&#xa;Route approver + create approval record&#xa;services/approval-service (:3004)" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#CA8A04;fillColor=#FEF9C3;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="670" y="620" width="280" height="100" as="geometry"/>
+        </mxCell>
+        <mxCell id="pdb4" value="PostgreSQL&#xa;approvals + invoice status&#xa;pending_approval / approved / rejected / posted" style="shape=cylinder3;whiteSpace=wrap;html=1;strokeColor=#DC2626;fillColor=#FEE2E2;" vertex="1" parent="1">
+          <mxGeometry x="670" y="740" width="280" height="100" as="geometry"/>
+        </mxCell>
+
+        <!-- Connectors -->
+        <mxCell id="pe1" style="endArrow=block;html=1;strokeColor=#334155;" edge="1" parent="1" source="p1" target="pdb1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="pe2" style="endArrow=block;html=1;strokeColor=#334155;" edge="1" parent="1" source="p1" target="pfs">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="pe3" value="async" style="endArrow=block;html=1;strokeColor=#DB2777;dashed=1;" edge="1" parent="1" source="p1" target="pq1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="pe4" value="async" style="endArrow=block;html=1;strokeColor=#DB2777;dashed=1;" edge="1" parent="1" source="pq1" target="p2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="pe5" value="sync" style="endArrow=block;html=1;strokeColor=#9A3412;" edge="1" parent="1" source="p2" target="pai">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="pe6" style="endArrow=block;html=1;strokeColor=#334155;" edge="1" parent="1" source="p2" target="pdb2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="pe7" value="async" style="endArrow=block;html=1;strokeColor=#DB2777;dashed=1;" edge="1" parent="1" source="p2" target="pq2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="pe8" value="async" style="endArrow=block;html=1;strokeColor=#DB2777;dashed=1;" edge="1" parent="1" source="pq2" target="p3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="pe9" style="endArrow=block;html=1;strokeColor=#334155;" edge="1" parent="1" source="p3" target="pdb3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="pe10" value="async (valid only)" style="endArrow=block;html=1;strokeColor=#DB2777;dashed=1;" edge="1" parent="1" source="p3" target="pq3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="pe11" value="async" style="endArrow=block;html=1;strokeColor=#DB2777;dashed=1;" edge="1" parent="1" source="pq3" target="p4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="pe12" style="endArrow=block;html=1;strokeColor=#334155;" edge="1" parent="1" source="p4" target="pdb4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+
+  <diagram id="data" name="03 - Data Model (simplified)">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <mxCell id="dt" value="PostgreSQL - main entities (simplified)" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=22;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="20" y="10" width="1360" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- Entities -->
+        <mxCell id="u" value="users&#xa;user_id (PK)&#xa;email (unique)&#xa;role, status" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#334155;fillColor=#F1F5F9;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="90" y="120" width="220" height="110" as="geometry"/>
+        </mxCell>
+        <mxCell id="v" value="vendors&#xa;vendor_id (PK)&#xa;erp_vendor_code (unique)&#xa;legal_name, status" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#334155;fillColor=#F1F5F9;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="90" y="290" width="220" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="po" value="purchase_orders&#xa;po_id (PK)&#xa;po_number (unique)&#xa;vendor_id (FK)" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#334155;fillColor=#F1F5F9;" vertex="1" parent="1">
+          <mxGeometry x="90" y="470" width="220" height="110" as="geometry"/>
+        </mxCell>
+        <mxCell id="inv" value="invoices&#xa;invoice_id (PK)&#xa;vendor_id (FK)&#xa;raw_document_id (FK)&#xa;status, total" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#DC2626;fillColor=#FEE2E2;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="410" y="250" width="260" height="150" as="geometry"/>
+        </mxCell>
+        <mxCell id="doc" value="documents&#xa;document_id (PK)&#xa;invoice_id (FK)&#xa;storage_path, mime_type&#xa;ocr_text, extraction_payload" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#7C3AED;fillColor=#EDE9FE;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="740" y="120" width="290" height="150" as="geometry"/>
+        </mxCell>
+        <mxCell id="li" value="line_items&#xa;line_id (PK)&#xa;invoice_id (FK)&#xa;amount, gl_code (FK)" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#334155;fillColor=#F1F5F9;" vertex="1" parent="1">
+          <mxGeometry x="740" y="320" width="290" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="ap" value="approvals&#xa;approval_id (PK)&#xa;invoice_id (FK)&#xa;approver_user_id (FK)&#xa;decision, stage" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#334155;fillColor=#F1F5F9;" vertex="1" parent="1">
+          <mxGeometry x="740" y="490" width="290" height="140" as="geometry"/>
+        </mxCell>
+        <mxCell id="gl" value="gl_codes&#xa;gl_code (PK)&#xa;company_code, is_active" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#334155;fillColor=#F1F5F9;" vertex="1" parent="1">
+          <mxGeometry x="410" y="470" width="260" height="90" as="geometry"/>
+        </mxCell>
+
+        <!-- Relationships -->
+        <mxCell id="r1" value="1..*" style="endArrow=block;html=1;strokeColor=#475569;" edge="1" parent="1" source="v" target="inv">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="r2" value="1..*" style="endArrow=block;html=1;strokeColor=#475569;" edge="1" parent="1" source="v" target="po">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="r3" value="0..1" style="endArrow=block;html=1;strokeColor=#475569;" edge="1" parent="1" source="inv" target="doc">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="r4" value="1..*" style="endArrow=block;html=1;strokeColor=#475569;" edge="1" parent="1" source="inv" target="li">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="r5" value="1..*" style="endArrow=block;html=1;strokeColor=#475569;" edge="1" parent="1" source="inv" target="ap">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="r6" value="1..*" style="endArrow=block;html=1;strokeColor=#475569;" edge="1" parent="1" source="u" target="ap">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="r7" value="0..*" style="endArrow=block;html=1;strokeColor=#475569;" edge="1" parent="1" source="gl" target="li">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="dlegend" value="Note: This is a simplified view of the schema used by the services." style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="20" y="850" width="1360" height="30" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
+

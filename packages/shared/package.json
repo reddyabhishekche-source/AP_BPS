@@ -1,0 +1,22 @@
+{
+  "name": "@ap-bps/shared",
+  "version": "1.0.0",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "migrate": "knex --knexfile src/db/knexfile.ts migrate:latest",
+    "migrate:rollback": "knex --knexfile src/db/knexfile.ts migrate:rollback",
+    "seed": "knex --knexfile src/db/knexfile.ts seed:run"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "knex": "^3.1.0",
+    "lodash": "^4.18.1",
+    "pg": "^8.11.5"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.11.5",
+    "typescript": "^5.4.5"
+  }
+}

@@ -1,0 +1,73 @@
+erDiagram
+  USERS ||--o{ APPROVALS : "approver_user_id"
+  INVOICES ||--o{ APPROVALS : "invoice_id"
+  VENDORS ||--o{ INVOICES : "vendor_id"
+  DOCUMENTS }o--|| INVOICES : "raw_document_id / invoice_id"
+  INVOICES ||--o{ LINE_ITEMS : "invoice_id"
+  GL_CODES ||--o{ LINE_ITEMS : "gl_code"
+  VENDORS ||--o{ PURCHASE_ORDERS : "vendor_id"
+  PURCHASE_ORDERS ||--o{ RECEIPTS : "po_id"
+  VENDORS ||--o{ RECEIPTS : "vendor_id"
+
+  USERS {
+    uuid user_id PK
+    string email UK
+    string password_hash
+    string full_name
+    enum role
+    enum status
+  }
+  VENDORS {
+    uuid vendor_id PK
+    string erp_vendor_code UK
+    string legal_name
+    enum status
+  }
+  PURCHASE_ORDERS {
+    uuid po_id PK
+    uuid vendor_id FK
+    string po_number UK
+    enum status
+  }
+  GL_CODES {
+    string gl_code PK
+    string company_code
+    boolean is_active
+  }
+  DOCUMENTS {
+    uuid document_id PK
+    uuid invoice_id FK
+    string storage_path
+    string mime_type
+    text ocr_text
+    jsonb extraction_payload
+  }
+  INVOICES {
+    uuid invoice_id PK
+    uuid vendor_id FK
+    uuid raw_document_id FK
+    string invoice_number
+    enum status
+    decimal total
+    decimal confidence_score
+  }
+  LINE_ITEMS {
+    uuid line_id PK
+    uuid invoice_id FK
+    string gl_code FK
+    decimal amount
+  }
+  RECEIPTS {
+    uuid receipt_id PK
+    uuid po_id FK
+    uuid vendor_id FK
+    string erp_drn_code
+  }
+  APPROVALS {
+    uuid approval_id PK
+    uuid invoice_id FK
+    uuid approver_user_id FK
+    int stage
+    enum decision
+  }
+
