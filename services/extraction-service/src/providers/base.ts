@@ -33,16 +33,24 @@ const BASE_JSON_SCHEMA = `{
   "invoice_number": string | null,
   "invoice_date": string | null,        // ISO 8601 YYYY-MM-DD
   "due_date": string | null,            // ISO 8601 YYYY-MM-DD
-  "vendor_name": string | null,
-  "vendor_tax_id": string | null,
-  "vendor_address": string | null,
-  "po_reference": string | null,
+  "vendor": {
+    "name": string | null,
+    "address": string | null,
+    "email": string | null,
+    "tax_id": string | null
+  },
+  "customer": {
+    "name": string | null,
+    "address": string | null
+  },
   "currency": string,                   // 3-letter ISO code, default USD
-  "subtotal": number | null,
-  "tax": number | null,
-  "total": number | null,
-  "field_regions": object | null,       // OPTIONAL: header field key -> [{page,left,top,width,height,page_width,page_height,coordinate_space}]
-  "line_items": [
+  "po_reference": string | null,
+  "totals": {
+    "subtotal": number | null,
+    "tax": number | null,
+    "total": number | null
+  },
+  "items": [
     {
       "description": string | null,
       "quantity": number | null,
@@ -51,15 +59,13 @@ const BASE_JSON_SCHEMA = `{
       "tax_code": string | null,
       "po_line_reference": string | null,
       "custom_fields": object | null,   // key/value pairs for configured line-item custom fields
-      "highlight_terms": string[],      // 1-5 short snippets from document for this line item
-      "field_regions": object | null    // OPTIONAL: per-line-item field key -> [{page,left,top,width,height,page_width,page_height,coordinate_space}]
+      "field_regions": object | null    // per-cell bounding boxes: field key -> [{page,left,top,width,height,coordinate_space}]
     }
   ],
   "custom_fields": object | null,       // key/value pairs for configured header-level custom fields
-  "field_confidence": object | null,    // map of field key -> confidence [0..1]
-  "highlight_terms": string[],          // 3-15 short snippets copied exactly from document
-  "confidence_score": number,           // 0.0 - 1.0 based on extraction quality
-  "raw_response": string                // Copy your entire JSON as a string here for audit
+  "field_regions": object | null,       // header field key -> [{page,left,top,width,height,coordinate_space}]
+  "field_confidence": object | null,    // field key -> confidence [0..1]
+  "confidence_score": number            // 0.0 - 1.0 based on extraction quality
 }`;
 
 function typeInstruction(type: ExtractionFieldType): string {
@@ -88,15 +94,25 @@ function buildFieldInstructions(customFields: ExtractionFieldConfig[], appliesTo
 
 export function buildExtractionSystemPrompt(customFields: ExtractionFieldConfig[] = []): string {
   return `You are an expert Accounts Payable data extraction engine.
-Extract structured invoice data from the provided document content and return ONLY valid JSON with no markdown.
-For highlight_terms (top-level and line-item level), include exact text snippets copied from the document that best anchor each extracted value visually.
-For field_confidence, provide confidence for each extracted header field key using values from 0.0 to 1.0.
-For invoice_date and due_date, always return ISO 8601 dates in the format YYYY-MM-DD (no locale formats like 03/04/2026). If a numeric date is ambiguous (could be MM/DD or DD/MM), return null.
+
+Extract all invoice data from this document.
+
+Return STRICT JSON only — no markdown, no code blocks, no extra text.
+
+Rules:
+- Detect fields automatically (no assumptions about layout)
+- Extract EXACT values as seen in the document
+- Do NOT hallucinate missing data
+- Keep missing fields as null
+- For invoice_date and due_date, always return ISO 8601 dates in the format YYYY-MM-DD. If a numeric date is ambiguous (could be MM/DD or DD/MM), return null.
+- For currency, return 3-letter ISO code (default USD)
+
 If an image is provided, return bounding boxes for every extracted value — both header fields and individual line item cells — using normalized 0..1 coordinates (0,0 = top-left, 1,1 = bottom-right of the image). Set coordinate_space to "normalized" for all boxes.
-For header field_regions include: invoice_number, invoice_date, due_date, vendor_name, po_reference, subtotal, tax, total, currency.
-For each line item, populate its field_regions with boxes for: description, quantity, unit_price, amount (only include fields that are present and non-null for that row).
-If multiple page images are provided, set the page field (1-based) on each box to indicate which image it is on.
+For header field_regions include keys: invoice_number, invoice_date, due_date, vendor.name, vendor.address, vendor.email, customer.name, po_reference, totals.subtotal, totals.tax, totals.total.
+For each line item, populate its field_regions with boxes for: description, quantity, unit_price, amount (only include fields present and non-null for that row).
+If multiple page images are provided, set the page field (1-based) on each box.
 Draw every box as tightly as possible around the VALUE text only — exclude labels, table borders, and surrounding whitespace. If you are not confident about a box location, omit it rather than guessing.
+For field_confidence, provide a confidence score [0..1] for each header field key based on how clearly the value is visible in the document.
 
 Return exactly this JSON structure (use null for missing fields):
 ${BASE_JSON_SCHEMA}
@@ -387,6 +403,24 @@ export function parseModelOutput(raw: string, customFields: ExtractionFieldConfi
     const cleaned = raw.replace(/```(?:json)?\n?/g, '').trim();
     const parsed = JSON.parse(cleaned) as Record<string, unknown>;
 
+    // Support both new nested format (vendor.name, totals.subtotal, items)
+    // and old flat format (vendor_name, subtotal, line_items) for backwards compatibility.
+    const vendorObj = typeof parsed.vendor === 'object' && parsed.vendor !== null
+      ? (parsed.vendor as Record<string, unknown>) : {};
+    const totalsObj = typeof parsed.totals === 'object' && parsed.totals !== null
+      ? (parsed.totals as Record<string, unknown>) : {};
+
+    // Resolve scalar fields: prefer new nested keys, fall back to old flat keys.
+    const rawVendorName = vendorObj.name ?? parsed.vendor_name;
+    const rawVendorAddress = vendorObj.address ?? parsed.vendor_address;
+    const rawVendorTaxId = vendorObj.tax_id ?? parsed.vendor_tax_id;
+    const rawSubtotal = totalsObj.subtotal ?? parsed.subtotal;
+    const rawTax = totalsObj.tax ?? parsed.tax;
+    const rawTotal = totalsObj.total ?? parsed.total;
+    // `items` (new) or `line_items` (old)
+    const rawLineItemsSource = Array.isArray(parsed.items) ? parsed.items
+      : Array.isArray(parsed.line_items) ? parsed.line_items : [];
+
     const parsedFieldConfidence = typeof parsed.field_confidence === 'object' && parsed.field_confidence !== null
       ? Object.entries(parsed.field_confidence as Record<string, unknown>).reduce<Record<string, number | null>>((acc, [key, value]) => {
           const n = Number(value);
@@ -397,10 +431,9 @@ export function parseModelOutput(raw: string, customFields: ExtractionFieldConfi
 
     const field_regions = normalizeFieldRegions(parsed.field_regions);
 
-    // Merge per-line-item field_regions into the top-level map using
+    // Merge per-line-item field_regions into the top-level map as
     // "line_item_{idx}_{field}" keys so the viewer can look them up by a flat key.
-    const rawLineItems = Array.isArray(parsed.line_items) ? parsed.line_items : [];
-    rawLineItems.forEach((item, idx) => {
+    rawLineItemsSource.forEach((item: unknown, idx: number) => {
       const row = typeof item === 'object' && item !== null ? (item as Record<string, unknown>) : {};
       const liRegions = normalizeFieldRegions(row.field_regions);
       for (const [field, boxes] of Object.entries(liRegions)) {
@@ -412,16 +445,16 @@ export function parseModelOutput(raw: string, customFields: ExtractionFieldConfi
       invoice_number: parsed.invoice_number == null ? null : String(parsed.invoice_number),
       invoice_date: normalizeCoreDate(parsed.invoice_date),
       due_date: normalizeCoreDate(parsed.due_date),
-      vendor_name: parsed.vendor_name == null ? null : String(parsed.vendor_name),
-      vendor_tax_id: parsed.vendor_tax_id == null ? null : String(parsed.vendor_tax_id),
-      vendor_address: parsed.vendor_address == null ? null : String(parsed.vendor_address),
+      vendor_name: rawVendorName == null ? null : String(rawVendorName),
+      vendor_tax_id: rawVendorTaxId == null ? null : String(rawVendorTaxId),
+      vendor_address: rawVendorAddress == null ? null : String(rawVendorAddress),
       po_reference: parsed.po_reference == null ? null : String(parsed.po_reference),
       currency: parsed.currency == null ? 'USD' : String(parsed.currency),
-      subtotal: parsed.subtotal == null || !Number.isFinite(Number(parsed.subtotal)) ? null : Number(parsed.subtotal),
-      tax: parsed.tax == null || !Number.isFinite(Number(parsed.tax)) ? null : Number(parsed.tax),
-      total: parsed.total == null || !Number.isFinite(Number(parsed.total)) ? null : Number(parsed.total),
+      subtotal: rawSubtotal == null || !Number.isFinite(Number(rawSubtotal)) ? null : Number(rawSubtotal),
+      tax: rawTax == null || !Number.isFinite(Number(rawTax)) ? null : Number(rawTax),
+      total: rawTotal == null || !Number.isFinite(Number(rawTotal)) ? null : Number(rawTotal),
       field_regions,
-      line_items: normalizeLineItems(parsed.line_items, customFields),
+      line_items: normalizeLineItems(rawLineItemsSource, customFields),
       custom_fields: buildCustomFieldOutput(parsed.custom_fields, customFields, 'header'),
       field_confidence: parsedFieldConfidence,
       highlight_terms: Array.isArray(parsed.highlight_terms)
