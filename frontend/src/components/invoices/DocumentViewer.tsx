@@ -20,8 +20,6 @@ interface HighlightEntry {
   heightPct: number;
   fieldKey: string;
   active: boolean;
-  /** Confidence score 0..1 for color-coding; null means unknown (treated as high) */
-  confidence: number | null;
 }
 
 interface RenderedPage {
@@ -40,6 +38,7 @@ interface Props {
   fieldRegions?: Record<string, FieldRegionBox[]>;
   fieldValues?: Record<string, string | number | null | undefined>;
   fieldConfidence?: Record<string, number | null>;
+  confidenceThreshold?: number;
   renderedPages?: RenderedPage[];
   highlightValues?: string[];
   activeHighlight?: string | null;
@@ -112,6 +111,7 @@ export function DocumentViewer({
   fieldRegions = {},
   fieldValues = {},
   fieldConfidence = {},
+  confidenceThreshold = 0.8,
   renderedPages = [],
   highlightValues = [],
   activeHighlight,
@@ -205,13 +205,12 @@ export function DocumentViewer({
 
   const activeHighlights = useMemo<HighlightEntry[]>(() => {
     const activeLoose = normalizeLoose(activeHighlight ?? '');
-    // Only hide boxes with very low confidence (<0.4); medium (0.4-0.8) shows as orange.
-    const minConfidence = 0.4;
+    const threshold = Number.isFinite(confidenceThreshold) ? confidenceThreshold : 0.8;
     const entries: HighlightEntry[] = [];
 
     for (const [fieldKey, boxes] of Object.entries(fieldRegions)) {
-      const confidence = fieldConfidence[fieldKey] ?? null;
-      if (confidence != null && confidence < minConfidence) continue;
+      const confidence = fieldConfidence[fieldKey];
+      if (confidence != null && confidence < threshold) continue;
       const value = fieldValues[fieldKey];
       if ((fieldKey in fieldValues) && (value == null || value === '')) continue;
       const valueLoose = normalizeLoose(value == null ? '' : String(value));
@@ -265,13 +264,12 @@ export function DocumentViewer({
           heightPct: Math.max(0.5, Math.min(100, box.height * 100)),
           fieldKey,
           active: isActive,
-          confidence,
         });
       }
     }
 
     return entries;
-  }, [fieldRegions, fieldValues, fieldConfidence, activeHighlight, renderedPages, ocrImageWidth, ocrImageHeight]);
+  }, [fieldRegions, fieldValues, fieldConfidence, confidenceThreshold, activeHighlight, renderedPages, ocrImageWidth, ocrImageHeight]);
 
   const hasBboxHighlights = activeHighlights.length > 0;
   const hasAnyBboxSource = Object.keys(fieldRegions).length > 0;
@@ -313,37 +311,21 @@ export function DocumentViewer({
   function renderOverlays(highlights: HighlightEntry[], currentPage: number) {
     return highlights
       .filter((box) => box.page === currentPage)
-      .map((box, idx) => {
-        // Color coding:
-        //   cyan  — currently active / selected field
-        //   green — high confidence (≥ 0.8 or unknown)
-        //   orange — medium confidence (0.4 – 0.8)
-        let className: string;
-        let borderWidth: string;
-        if (box.active) {
-          className = 'absolute rounded-sm border-cyan-500 bg-cyan-300/30 shadow-[0_0_0_1.5px_rgba(6,182,212,0.5)]';
-          borderWidth = '2px';
-        } else if (box.confidence == null || box.confidence >= 0.8) {
-          className = 'absolute rounded-sm border-green-500 bg-green-400/20';
-          borderWidth = '1.5px';
-        } else {
-          className = 'absolute rounded-sm border-orange-500 bg-orange-400/20';
-          borderWidth = '1px';
-        }
-        return (
-          <div
-            key={`${box.fieldKey}-${idx}-${box.leftPct.toFixed(1)}-${box.topPct.toFixed(1)}`}
-            className={className}
-            style={{
-              left: `${box.leftPct}%`,
-              top: `${box.topPct}%`,
-              width: `${box.widthPct}%`,
-              height: `${box.heightPct}%`,
-              borderWidth,
-            }}
-          />
-        );
-      });
+      .map((box, idx) => (
+        <div
+          key={`${box.fieldKey}-${idx}-${box.leftPct.toFixed(1)}-${box.topPct.toFixed(1)}`}
+          className={box.active
+            ? 'absolute rounded-sm border-cyan-500 bg-cyan-300/25 shadow-[0_0_0_1px_rgba(6,182,212,0.35)]'
+            : 'absolute rounded-sm border-amber-500 bg-amber-200/20'}
+          style={{
+            left: `${box.leftPct}%`,
+            top: `${box.topPct}%`,
+            width: `${box.widthPct}%`,
+            height: `${box.heightPct}%`,
+            borderWidth: box.active ? '2px' : '1px',
+          }}
+        />
+      ));
   }
 
   if (!storageUrl && !useRenderedPdfPreview) {

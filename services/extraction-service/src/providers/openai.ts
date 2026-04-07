@@ -13,7 +13,7 @@ export class OpenAIProvider implements AIExtractionProvider {
 
   constructor() {
     this.client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-    this.model = process.env.OPENAI_MODEL ?? 'gpt-4.1';
+    this.model = process.env.OPENAI_MODEL ?? 'gpt-5.2';
   }
 
   private canUseUploadedFile(input: ExtractionInput): boolean {
